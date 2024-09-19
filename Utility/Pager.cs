@@ -3,7 +3,7 @@ namespace SimpleDatabase.Utility;
 /// <summary>
 ///  Manage reading and writing pages(data) to the disk
 /// </summary>
-public class Pager
+public class Pager : IDisposable
 {
     /// <summary>
     ///  Individual page size in the unit of bytes
