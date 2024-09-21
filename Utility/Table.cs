@@ -287,7 +287,7 @@ public class Table
         leftChild.ParentPointer = newRootPageNum;
         rightChild.ParentPointer = newRootPageNum;
 
-        byte[] rootSerialized = SerializeNode(root);
+        byte[] rootSerialized = SerializeNode(rootNode);
         byte[] leftChildSerialized = SerializeNode(leftChild);
         byte[] rightChildSerialized = SerializeNode(rightChild);
 
@@ -296,5 +296,113 @@ public class Table
         Array.Copy(rightChildSerialized, Pager.GetPage(rightChildPageNum), rightChildSerialized.Length);
 
         RootPageNum = newRootPageNum;
+    }
+
+    private void UpdateInternalNodeKey(BTreeInternalNode node, uint oldKey, uint newKey)
+    {
+        var keysArray = node.Keys.Values.ToArray();
+
+        int index = Array.IndexOf(keysArray, oldKey);
+        if (index != -1)
+        {
+            node.Keys[(uint)index] = newKey;
+        }
+    }
+
+    private void InsertInternalNode(BTreeInternalNode node, uint childPageNum, uint childMaxKey)
+    {
+        if (node.NumKeys >= BTreeInternalNode.InternalNodeMaxCells)
+        {
+            SplitInternalNode(node, childPageNum, childMaxKey);
+
+            return;
+        }
+
+        uint newKeyIndex = node.NumKeys;
+        for (uint i = 0; i < node.NumKeys; i++)
+        {
+            if (childMaxKey < node.Keys[i])
+            {
+                newKeyIndex = i;
+
+                break;
+            }
+        }
+
+        for (uint i = node.NumKeys; i > newKeyIndex; i--)
+        {
+            node.Children[i] = node.Children[i - 1];
+            node.Keys[i] = node.Keys[i - 1];
+        }
+
+        node.Children[newKeyIndex] = childPageNum;
+        node.Keys[newKeyIndex] = childMaxKey;
+        node.NumKeys += 1;
+
+        byte[] nodeSerialized = SerializeNode(node);
+        Array.Copy(nodeSerialized, Pager.GetPage(node.ParentPointer), nodeSerialized.Length);
+
+        Pager.Flush(node.ParentPointer);
+    }
+
+    private void SplitInternalNode(BTreeInternalNode oldNode, uint childPageNum, uint childMaxKey)
+    {
+        uint newPageNum = Pager.NumPages;
+        BTreeInternalNode newNode = new BTreeInternalNode()
+        {
+            Type = NodeType.Internal,
+            IsRoot = false,
+            NumKeys = 0,
+            RightChild = oldNode.RightChild,
+            ParentPointer = oldNode.ParentPointer
+        };
+
+        uint splitIndex = BTreeInternalNode.InternalNodeMaxCells / 2;
+        for (uint i = splitIndex; i < BTreeInternalNode.InternalNodeMaxCells; i++)
+        {
+            newNode.Children[newNode.NumKeys] = oldNode.Children[i];
+            newNode.Keys[newNode.NumKeys] = oldNode.Keys[i];
+            newNode.NumKeys += 1;
+
+            oldNode.Children.Remove(i);
+            oldNode.Keys.Remove(i);
+            oldNode.NumKeys += 1;
+        }
+
+        oldNode.RightChild = newNode.Children[0];
+
+        newNode.Children.Remove(0);
+        newNode.NumKeys -= 1;
+
+        if (childMaxKey < newNode.Keys.First().Value)
+        {
+            InsertInternalNode(oldNode, childPageNum, childMaxKey);
+        }
+        else
+        {
+            InsertInternalNode(newNode, childPageNum, childMaxKey);
+        }
+
+        byte[] oldNodeSerialized = SerializeNode(oldNode);
+        byte[] newNodeSerialized = SerializeNode(newNode);
+
+        Array.Copy(oldNodeSerialized, Pager.GetPage(oldNode.ParentPointer), oldNodeSerialized.Length);
+        Array.Copy(newNodeSerialized, Pager.GetPage(newPageNum), newNodeSerialized.Length);
+
+        Pager.Flush(oldNode.ParentPointer);
+        Pager.Flush(newPageNum);
+
+        if (oldNode.IsRoot)
+        {
+            CreateNewRoot(newPageNum);
+        }
+        else
+        {
+            uint parentPageNum = oldNode.ParentPointer;
+
+            BTreeInternalNode parent = (BTreeInternalNode)DeserializeNode(Pager.GetPage(parentPageNum));
+            UpdateInternalNodeKey(parent, oldNode.Keys.Values.Max(), oldNode.Keys.Values.Max());
+            InsertInternalNode(parent, newPageNum, newNode.Keys.Values.Max());
+        }
     }
 }
