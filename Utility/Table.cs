@@ -175,4 +175,100 @@ public class Table
             EndOfTable = leafNode.NumCells == 0
         };
     }
+
+    private void SplitAndInsert(Cursor cursor, uint key, Row value)
+    {
+        BTreeLeafNode oldNode = (BTreeLeafNode)DeserializeNode(Pager.GetPage(cursor.PageNum));
+        uint newPageNum = Pager.NumPages;
+        BTreeLeafNode newNode = new BTreeLeafNode()
+        {
+            Type = NodeType.Leaf,
+            IsRoot = false,
+            NumCells = 0,
+            NextLeaf = oldNode.NextLeaf,
+            ParentPointer = oldNode.ParentPointer
+        };
+
+        oldNode.NextLeaf = newPageNum;
+
+        int splitIndex = BTreeLeafNode.LeafNodeMaxCells / 2;
+        var sortedCells = oldNode.Cells.OrderBy(c => c.Key).ToList();
+
+        for (int i = splitIndex; i < sortedCells.Count; i++)
+        {
+            var cell = sortedCells[i];
+
+            newNode.Cells[cell.Key] = cell.Value;
+            newNode.NumCells += 1;
+
+            oldNode.Cells.Remove(cell.Key);
+        }
+
+        oldNode.NumCells = (uint)splitIndex;
+
+        if (key < newNode.Cells.Keys.First())
+        {
+            oldNode.Cells[key] = value;
+            oldNode.NumCells += 1;
+        }
+        else
+        {
+            newNode.Cells[key] = value;
+            newNode.NumCells += 1;
+        }
+
+        byte[] oldNodeSerialized = SerializeNode(oldNode);
+        byte[] newNodeSerialized = SerializeNode(newNode);
+        Array.Copy(oldNodeSerialized, Pager.GetPage(cursor.PageNum), oldNodeSerialized.Length);
+        Array.Copy(newNodeSerialized, Pager.GetPage(newPageNum), newNodeSerialized.Length);
+        Pager.Flush(cursor.PageNum);
+        Pager.Flush(newPageNum);
+
+        if (oldNode.IsRoot)
+        {
+            CreateNewRoot(newPageNum);
+        }
+        else
+        {
+            uint parentPageNum = oldNode.ParentPointer;
+            BTreeInternalNode parent = (BTreeInternalNode)DeserializeNode(Pager.GetPage(parentPageNum));
+
+            uint newMaxKey = oldNode.Cells.Keys.Max();
+
+            UpdateInternalNodeKey(parent, cursor.PageNum, newMaxKey);
+            InsertInternalNode(parent, newPageNum, newNode.Cells.Keys.Max());
+        }
+    }
+
+    private void CreateNewRoot(uint rightChildPageNum)
+    {
+        BTreeLeafNode rightChild = (BTreeLeafNode)DeserializeNode(Pager.GetPage(rightChildPageNum));
+        BTreeLeafNode leftChild = (BTreeLeafNode)DeserializeNode(Pager.GetPage(RootPageNum));
+
+        uint newRootPageNum = Pager.NumPages;
+        BTreeInternalNode rootNode = new BTreeInternalNode()
+        {
+            Type = NodeType.Internal,
+            IsRoot = true,
+            NumKeys = 1,
+            RightChild = rightChildPageNum,
+            ParentPointer = 0
+        };
+
+        rootNode.Children[0] = RootPageNum;
+        rootNode.Keys[0] = leftChild.Cells.Keys.Max();
+
+        leftChild.ParentPointer = newRootPageNum;
+        rightChild.ParentPointer = newRootPageNum;
+
+        byte[] rootSerialized = SerializeNode(root);
+        byte[] leftChildSerialized = SerializeNode(leftChild);
+        byte[] rightChildSerialized = SerializeNode(rightChild);
+
+        Array.Copy(rootSerialized, Pager.GetPage(RootPageNum), rootSerialized.Length);
+        Array.Copy(leftChildSerialized, Pager.GetPage(RootPageNum), leftChildSerialized.Length);
+        Array.Copy(rightChildSerialized, Pager.GetPage(rightChildPageNum), rightChildSerialized.Length);
+
+        RootPageNum = newRootPageNum;
+    }
 }
