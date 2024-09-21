@@ -176,6 +176,32 @@ public class Table
         };
     }
 
+    public void Insert(uint key, Row value)
+    {
+        Cursor cursor = Find(key);
+        BTreeLeafNode node = (BTreeLeafNode)DeserializeNode(Pager.GetPage(cursor.PageNum));
+
+        if (node.Cells.ContainsKey(key))
+        {
+            throw new Exception($"Key {key} already exists in the table.");
+        }
+
+        if (node.NumCells >= BTreeLeafNode.LeafNodeMaxCells)
+        {
+            SplitAndInsert(cursor, key, value);
+        }
+        else
+        {
+            node.Cells[key] = value;
+            node.NumCells += 1;
+
+            byte[] serializedNode = SerializeNode(node);
+            Array.Copy(serializedNode, Pager.GetPage(cursor.PageNum), serializedNode.Length);
+
+            Pager.Flush(cursor.PageNum);
+        }
+    }
+
     private void SplitAndInsert(Cursor cursor, uint key, Row value)
     {
         BTreeLeafNode oldNode = (BTreeLeafNode)DeserializeNode(Pager.GetPage(cursor.PageNum));
