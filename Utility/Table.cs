@@ -143,4 +143,36 @@ public class Table
             }
         } while (pageNum != 0);
     }
+
+    public Cursor Find(uint key)
+    {
+        uint pageNum = RootPageNum;
+        BTreeNode node = DeserializeNode(Pager.GetPage(pageNum));
+
+
+        while (node.Type == NodeType.Internal)
+        {
+            BTreeInternalNode internalNode = (BTreeInternalNode)node;
+            uint childIndex = 0;
+
+            while (childIndex < internalNode.NumKeys && key >= internalNode.Keys[childIndex])
+            {
+                childIndex += 1;
+            }
+
+            pageNum = childIndex == internalNode.NumKeys
+                ? internalNode.RightChild
+                : internalNode.Children[childIndex];
+        }
+
+        BTreeLeafNode leafNode = (BTreeLeafNode)node;
+
+        return new Cursor()
+        {
+            Table = this,
+            PageNum = pageNum,
+            CellNum = 0,
+            EndOfTable = leafNode.NumCells == 0
+        };
+    }
 }
