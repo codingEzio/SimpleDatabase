@@ -115,4 +115,32 @@ public class Table
             }
         }
     }
+
+    public IEnumerable<Row> Select()
+    {
+        uint pageNum = RootPageNum;
+        BTreeNode node;
+
+        do
+        {
+            node = DeserializeNode(Pager.GetPage(pageNum));
+
+            if (node.Type == NodeType.Leaf)
+            {
+                BTreeLeafNode leafNode = (BTreeLeafNode)node;
+                foreach (var cell in leafNode.Cells.OrderBy(c => c.Key))
+                {
+                    yield return cell.Value;
+                }
+
+                pageNum = leafNode.NextLeaf;
+            }
+            else
+            {
+                BTreeInternalNode internalNode = (BTreeInternalNode)node;
+
+                pageNum = internalNode.Children[0];
+            }
+        } while (pageNum != 0);
+    }
 }
