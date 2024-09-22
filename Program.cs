@@ -20,6 +20,10 @@ public class Program
             Console.WriteLine("[Core]");
             Console.WriteLine("  select       Print all rows");
             Console.WriteLine("  insert <id> <username> <email>");
+            Console.WriteLine("[Meta]");
+            Console.WriteLine("  .exit        Exit the program");
+            Console.WriteLine("  .btree       Print the B-Tree (not yet)");
+            Console.WriteLine("  .constants   Print the constants");
 
             while (true)
             {
@@ -33,7 +37,25 @@ public class Program
 
                 if (input.StartsWith("."))
                 {
+                    switch (input.ToLower())
+                    {
+                        case ".exit":
+                            break;
 
+                        case ".btree":
+                            db.PrintTree();
+
+                            break;
+
+                        case ".constants":
+                            db.PrintConstants();
+
+                            break;
+
+                        default:
+                            Console.WriteLine($"Unknown meta command: {input}");
+                            break;
+                    }
                 }
                 else
                 {
