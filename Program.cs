@@ -40,7 +40,7 @@ public class Program
                     switch (input.ToLower())
                     {
                         case ".exit":
-                            break;
+                            return;
 
                         case ".btree":
                             db.PrintTree();
