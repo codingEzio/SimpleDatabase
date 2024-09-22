@@ -66,7 +66,7 @@ public class Pager : IDisposable
         }
 
         _fileStream.Seek(pageNum * PageSize, SeekOrigin.Begin);
-        _fileStream.Read(_pages[pageNum], 0, PageSize);
+        _fileStream.Write(_pages[pageNum], 0, PageSize);
     }
 
     public void FlushAll()
