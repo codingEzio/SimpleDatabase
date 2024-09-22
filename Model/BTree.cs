@@ -49,7 +49,7 @@ public class BTreeLeafNode : BTreeNode
     public const int LeafNodeMaxCells = 13;
     public uint NumCells { get; set; }
     public uint NextLeaf { get; set; }
-    public Dictionary<uint, Row> Cells { get; set; }
+    public Dictionary<uint, Row> Cells { get; set; } = new Dictionary<uint, Row>();
 }
 
 /// <summary>
