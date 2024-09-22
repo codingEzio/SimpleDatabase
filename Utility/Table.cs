@@ -65,7 +65,7 @@ public class Table
 
     private BTreeNode DeserializeNode(byte[] data)
     {
-        using (MemoryStream memoryStream = new MemoryStream())
+        using (MemoryStream memoryStream = new MemoryStream(data))
         using (BinaryReader binaryReader = new BinaryReader(memoryStream))
         {
             NodeType type = (NodeType)binaryReader.ReadByte();
